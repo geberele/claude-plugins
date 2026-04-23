@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>/ship — Claude Code plugin</title>
+  <meta name="description" content="A Claude Code slash command that delegates commit and push to a Haiku subagent — keeping your main context lean and your token cost low." />
+  <meta property="og:title" content="/ship — Claude Code plugin" />
+  <meta property="og:description" content="Commit and push without burning your context. Delegated to a Haiku subagent." />
+  <meta property="og:type" content="website" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16161a;
+      --surface-2: #1d1d23;
+      --border: #2a2a32;
+      --accent: #5eead4;
+      --accent-2: #7c6af7;
+      --accent-glow: rgba(94, 234, 212, 0.18);
+      --text: #e8e8f0;
+      --muted: #7a7a90;
+      --green: #3de874;
+      --yellow: #f5c842;
+      --red: #f55;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(circle at 15% 0%, rgba(124, 106, 247, 0.12), transparent 40%),
+        radial-gradient(circle at 85% 10%, rgba(94, 234, 212, 0.08), transparent 35%);
+      background-attachment: fixed;
+    }
+
+    .mono {
+      font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      background: rgba(13, 13, 15, 0.75);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 15px;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+      text-decoration: none;
+    }
+    .nav-logo span { color: var(--muted); }
+    .nav-links { display: flex; gap: 18px; align-items: center; }
+    .nav-link {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-cta {
+      font-size: 13px;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      background: var(--accent);
+      color: #0d0d0f;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 600;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    /* ── LAYOUT ── */
+    section {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 80px 24px;
+    }
+    .eyebrow {
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 14px;
+    }
+    h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; }
+    p { color: var(--muted); }
+    p strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 140px 24px 80px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+    .hero h1 {
+      font-size: clamp(48px, 9vw, 96px);
+      line-height: 1.02;
+      margin-bottom: 24px;
+      background: linear-gradient(180deg, #ffffff 30%, #9090a8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero h1 .slash { color: var(--accent); }
+    .hero .tagline {
+      font-size: clamp(18px, 2.4vw, 22px);
+      color: var(--muted);
+      max-width: 620px;
+      margin-bottom: 40px;
+    }
+    .hero .tagline strong { color: var(--text); }
+
+    .install-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 14px;
+      color: var(--text);
+      box-shadow: 0 0 0 1px transparent, 0 8px 32px rgba(0, 0, 0, 0.3);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .install-box:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-glow), 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .install-box .prompt { color: var(--accent); user-select: none; }
+    .install-box code { flex: 1; background: none; color: inherit; }
+    .copy-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    .hero-meta {
+      margin-top: 28px;
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .hero-meta .pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    /* ── PROBLEM / SOLUTION ── */
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 32px;
+    }
+    @media (max-width: 720px) { .split { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+    }
+    .card h3 {
+      font-size: 18px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card .label {
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .card.problem .label { color: var(--red); border: 1px solid rgba(255, 85, 85, 0.4); }
+    .card.fix .label { color: var(--green); border: 1px solid rgba(61, 232, 116, 0.4); }
+    .card p { font-size: 15px; }
+
+    /* ── FEATURES ── */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-top: 32px;
+    }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .feature:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .feature .icon {
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      color: var(--accent);
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .feature h4 {
+      font-size: 16px;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+    .feature p { font-size: 14px; line-height: 1.55; }
+
+    /* ── DIAGRAM ── */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      margin-top: 32px;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.85;
+      color: var(--text);
+      overflow-x: auto;
+    }
+    .diagram .you { color: var(--accent); }
+    .diagram .agent { color: var(--accent-2); }
+    .diagram .comment { color: var(--muted); }
+    .diagram .tree { color: var(--border); }
+
+    /* ── WILL/WON'T ── */
+    .matrix {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 24px;
+    }
+    @media (max-width: 720px) { .matrix { grid-template-columns: 1fr; } }
+    .matrix-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .matrix-col h4 {
+      font-size: 14px;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+    .matrix-col.will h4 { color: var(--green); }
+    .matrix-col.wont h4 { color: var(--red); }
+    .matrix-col ul { list-style: none; }
+    .matrix-col li {
+      padding: 8px 0;
+      font-size: 14px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    .matrix-col li:first-child { border-top: none; }
+    .matrix-col li::before {
+      display: inline-block;
+      width: 18px;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+    }
+    .matrix-col.will li::before { content: "+"; color: var(--green); }
+    .matrix-col.wont li::before { content: "−"; color: var(--red); }
+
+    /* ── USAGE ── */
+    .code-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-top: 16px;
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 14px;
+      line-height: 1.9;
+      overflow-x: auto;
+    }
+    .code-block .prompt { color: var(--accent); user-select: none; margin-right: 6px; }
+    .code-block .comment { color: var(--muted); }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    footer .footer-links { margin-top: 12px; display: flex; gap: 18px; justify-content: center; }
+
+    h2 { font-size: clamp(28px, 4vw, 38px); margin-bottom: 14px; }
+    section > p.lede { font-size: 17px; max-width: 680px; }
+
+    /* fade-in */
+    .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="#" class="nav-logo">geberele<span>/</span>claude-plugins</a>
+    <div class="nav-links">
+      <a class="nav-link" href="#how">How it works</a>
+      <a class="nav-link" href="#install">Install</a>
+      <a class="nav-cta" href="https://github.com/geberele/claude-plugins" target="_blank" rel="noopener">GitHub →</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="eyebrow">A Claude Code plugin</div>
+    <h1><span class="slash">/</span>ship</h1>
+    <p class="tagline">
+      Commit and push without <strong>burning your context</strong>. The whole flow runs on a
+      <strong>Haiku subagent</strong> — your main session never sees the diff.
+    </p>
+
+    <div class="install-box" role="region" aria-label="Install command">
+      <span class="prompt">$</span>
+      <code id="install-cmd">/plugin marketplace add geberele/claude-plugins</code>
+      <button class="copy-btn" data-copy="install-cmd" aria-label="Copy install command">copy</button>
+    </div>
+
+    <div class="hero-meta">
+      <span class="pill">Claude Code · slash command</span>
+      <span class="pill">runs on Haiku</span>
+      <span class="pill">MIT</span>
+    </div>
+  </header>
+
+  <section id="why" class="reveal">
+    <div class="eyebrow">Why it exists</div>
+    <h2>The cost of shipping ceremony</h2>
+    <div class="split">
+      <div class="card problem">
+        <h3><span class="label">The problem</span></h3>
+        <p>
+          Every "commit and push" turn looks the same: read <span class="mono">git status</span>,
+          read the diff, scan recent commits to match the convention, draft a message, commit, push,
+          handle the missing upstream. It works — but it dumps the full diff and twenty log entries
+          into your main session every time. Your context fills up with shipping ceremony, and you
+          pay for those tokens at your main model's rate.
+        </p>
+      </div>
+      <div class="card fix">
+        <h3><span class="label">The fix</span></h3>
+        <p>
+          <span class="mono">/ship</span> hands the whole flow to a dedicated subagent
+          (<span class="mono">git-shipper</span>) running on Haiku. It has its own context window
+          and exactly one job. Your main session sees a short summary — commit hash, message, push
+          result — and nothing else. The diff and the log get thrown away.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="reveal">
+    <div class="eyebrow">What you get</div>
+    <h2>Four things, delivered every time</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="icon">// 01</div>
+        <h4>Lean main context</h4>
+        <p>No diffs, no <span class="mono">git log</span> dumps polluting the conversation you're actually having.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">// 02</div>
+        <h4>Lower cost</h4>
+        <p>The expensive part — reading the diff, drafting the message — runs on Haiku, not your main model.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">// 03</div>
+        <h4>Repo-aware messages</h4>
+        <p>Detects Conventional Commits, ticket-prefixed (<span class="mono">PROJ-1234:</span>), or free-form, and matches the dominant style.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">// 04</div>
+        <h4>Safe by default</h4>
+        <p>Never <span class="mono">--force</span>, never <span class="mono">--no-verify</span>, never touches your source code.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="reveal">
+    <div class="eyebrow">How it works</div>
+    <h2>One command. One subagent. One summary back.</h2>
+    <p class="lede">
+      <span class="mono">/ship</span> is a thin slash command that delegates to <span class="mono">git-shipper</span>,
+      a Bash-only subagent pinned to Haiku. Everything happens in the subagent's context — the only
+      thing that comes back to your main session is the result.
+    </p>
+    <pre class="diagram">
+<span class="you">you</span> <span class="comment">▸</span> /ship
+ <span class="tree">└─</span> main session
+      <span class="tree">└─</span> delegates to <span class="agent">git-shipper</span>  <span class="comment">(Haiku · Bash only)</span>
+           <span class="tree">├─</span> git status / git diff       <span class="comment"># read changes</span>
+           <span class="tree">├─</span> git log --oneline -20       <span class="comment"># detect convention</span>
+           <span class="tree">├─</span> git branch --show-current   <span class="comment"># extract ticket ID</span>
+           <span class="tree">├─</span> git add / commit / push     <span class="comment"># ship</span>
+           <span class="tree">└─</span> returns: hash + message + push result
+ <span class="tree">└─</span> main session sees <span class="you">only the summary</span></pre>
+
+    <h3 style="margin-top: 40px; font-size: 20px;">What it will and won't do</h3>
+    <div class="matrix">
+      <div class="matrix-col will">
+        <h4>Will</h4>
+        <ul>
+          <li>Stage your changes, write the message, commit, push.</li>
+          <li>Set the upstream on first push if missing.</li>
+          <li>Stop and tell you if the diff is empty.</li>
+        </ul>
+      </div>
+      <div class="matrix-col wont">
+        <h4>Won't</h4>
+        <ul>
+          <li><span class="mono">git push --force</span>, even if asked.</li>
+          <li>Skip hooks (<span class="mono">--no-verify</span>) or bypass signing.</li>
+          <li>Touch source code, run tests, or create branches.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" class="reveal">
+    <div class="eyebrow">Install &amp; use</div>
+    <h2>Two lines to install. One word to ship.</h2>
+    <p class="lede">Requires <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.</p>
+
+    <div class="code-block">
+      <div><span class="prompt">$</span>/plugin marketplace add geberele/claude-plugins</div>
+      <div><span class="prompt">$</span>/plugin install ship@geberele</div>
+    </div>
+
+    <h3 style="margin-top: 36px; font-size: 18px;">Usage</h3>
+    <div class="code-block">
+      <div><span class="prompt">$</span>/ship                          <span class="comment"># infer everything from the diff</span></div>
+      <div><span class="prompt">$</span>/ship fixes flaky auth test    <span class="comment"># add extra context for the message</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      Built by <a href="https://github.com/geberele" target="_blank" rel="noopener">@geberele</a> ·
+      MIT licensed · <a href="https://github.com/geberele/claude-plugins" target="_blank" rel="noopener">Source on GitHub</a>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/geberele/claude-plugins/blob/main/ship/commands/ship.md" target="_blank" rel="noopener">command</a>
+      <a href="https://github.com/geberele/claude-plugins/blob/main/ship/agents/git-shipper.md" target="_blank" rel="noopener">subagent</a>
+      <a href="https://github.com/geberele/claude-plugins/issues" target="_blank" rel="noopener">issues</a>
+    </div>
+  </footer>
+
+  <script>
+    // copy buttons
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const target = document.getElementById(btn.dataset.copy);
+        if (!target) return;
+        try {
+          await navigator.clipboard.writeText(target.textContent.trim());
+          const original = btn.textContent;
+          btn.textContent = 'copied';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove('copied');
+          }, 1400);
+        } catch (e) { /* noop */ }
+      });
+    });
+
+    // reveal on scroll
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  </script>
+
+</body>
+</html>
