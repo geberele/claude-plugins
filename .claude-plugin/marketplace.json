@@ -1,0 +1,18 @@
+{
+  "name": "geberele",
+  "owner": {
+    "name": "Gabriele Manna",
+    "email": "geberele@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "ship",
+      "source": "./ship",
+      "description": "Stage, commit, and push with a repo-aware commit message — delegated to a fast Haiku subagent.",
+      "version": "0.1.0",
+      "author": { "name": "Gabriele Manna" },
+      "category": "git",
+      "keywords": ["git", "commit", "push", "workflow"]
+    }
+  ]
+}

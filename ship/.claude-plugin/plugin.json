@@ -1,0 +1,6 @@
+{
+  "name": "ship",
+  "version": "0.1.0",
+  "description": "Stage, commit, and push with a repo-aware commit message.",
+  "author": { "name": "Gabriele Manna" }
+}
