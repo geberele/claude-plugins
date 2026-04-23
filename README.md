@@ -2,9 +2,13 @@
 
 Personal marketplace of [Claude Code](https://claude.com/claude-code) plugins by [@geberele](https://github.com/geberele).
 
+**Website:** [geberele.github.io/claude-plugins](https://geberele.github.io/claude-plugins/)
+
 ---
 
 ## `/ship` — commit and push without burning your context
+
+[**Landing page →**](https://geberele.github.io/claude-plugins/)
 
 ### The problem
 
