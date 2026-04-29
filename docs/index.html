@@ -492,6 +492,12 @@
       <div><span class="prompt">$</span>/ship                          <span class="comment"># infer everything from the diff</span></div>
       <div><span class="prompt">$</span>/ship fixes flaky auth test    <span class="comment"># add extra context for the message</span></div>
     </div>
+
+    <h3 style="margin-top: 36px; font-size: 18px;">Optional: autonomous triggering</h3>
+    <p class="lede">Install the companion skill so Claude invokes <code>/ship</code> on its own when you say &ldquo;commit and push&rdquo; or &ldquo;ship it&rdquo; in plain English. Requires the plugin install above.</p>
+    <div class="code-block">
+      <div><span class="prompt">$</span>npx skills add geberele/claude-plugins --skill ship</div>
+    </div>
   </section>
 
   <footer>

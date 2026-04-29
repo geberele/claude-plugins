@@ -46,6 +46,16 @@ Won't:
 /plugin install ship@geberele
 ```
 
+### Optional: autonomous triggering via skills.sh
+
+By default `/ship` only runs when you type it. Install the companion skill if you want Claude to invoke `/ship` on its own when you say "commit and push", "ship it", etc. in plain English:
+
+```
+npx skills add geberele/claude-plugins --skill ship
+```
+
+The skill is a thin trigger — it still calls `/ship`, so the plugin install above is required.
+
 ## Usage
 
 ```
